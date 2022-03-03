@@ -17,20 +17,20 @@
 
 package org.apache.shardingsphere.driver.jdbc.core.connection;
 
-import com.alibaba.druid.pool.DruidDataSource;
 import lombok.Getter;
 import org.apache.shardingsphere.driver.jdbc.adapter.AbstractConnectionAdapter;
 import org.apache.shardingsphere.driver.jdbc.core.datasource.metadata.ShardingSphereDatabaseMetaData;
 import org.apache.shardingsphere.driver.jdbc.core.statement.ShardingSpherePreparedStatement;
 import org.apache.shardingsphere.driver.jdbc.core.statement.ShardingSphereStatement;
 import org.apache.shardingsphere.mode.manager.ContextManager;
-import org.apache.shardingsphere.sharding.api.config.ShardingRuleConfiguration;
 import org.apache.shardingsphere.traffic.context.TrafficContextHolder;
 import org.apache.shardingsphere.transaction.TransactionHolder;
 
-import java.sql.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
+import java.sql.Array;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 /**
  * ShardingSphere connection.
@@ -67,29 +67,6 @@ public final class ShardingSphereConnection extends AbstractConnectionAdapter {
      */
     public boolean isHoldTransaction() {
         return connectionManager.getConnectionTransaction().isHoldTransaction(autoCommit);
-    }
-
-    private PreparedStatement preparedStatementDruid(final String sql, Supplier<PreparedStatement> supplier) throws SQLException {
-        AtomicBoolean sqlShardingCase = new AtomicBoolean(true);
-        this.getContextManager().getMetaDataContexts().getMetaDataMap().get(this.getSchema())
-                .getRuleMetaData().getConfigurations().forEach(ruleItem -> {
-            if (sqlShardingCase.get()) {
-                ShardingRuleConfiguration ruleConfiguration = (ShardingRuleConfiguration) ruleItem;
-                ruleConfiguration.getBindingTableGroups().forEach(table -> {
-                    if (sql.contains(table)) {
-                        sqlShardingCase.set(false);
-                    }
-                });
-            }
-        });
-        PreparedStatement preparedStatement;
-        if (!sqlShardingCase.get()) {
-            DruidDataSource dataSource = (DruidDataSource) this.getContextManager().getDataSourceMap(this.getSchema());
-            preparedStatement = dataSource.getConnection().prepareStatement(sql);
-        } else {
-            preparedStatement = supplier.get();
-        }
-        return preparedStatement;
     }
 
     @Override
