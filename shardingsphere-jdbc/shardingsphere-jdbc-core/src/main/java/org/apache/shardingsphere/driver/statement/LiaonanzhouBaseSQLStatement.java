@@ -15,22 +15,20 @@
  * limitations under the License.
  */
 
-package org.apache.shardingsphere.driver.jdbc.core.statement;
+package org.apache.shardingsphere.driver.statement;
 
 import lombok.Getter;
-import org.apache.shardingsphere.sql.parser.sql.dialect.statement.mysql.MySQLStatement;
+import lombok.ToString;
 
-public class CdmsSQLStatement implements MySQLStatement {
-
-    @Getter
+@Getter
+@ToString
+abstract class LiaonanzhouBaseSQLStatement {
     private final String sql;
 
-    public CdmsSQLStatement(final String sql) {
-        this.sql = sql;
-    }
+    private final String databaseType;
 
-    @Override
-    public int getParameterCount() {
-        return 0;
+    LiaonanzhouBaseSQLStatement(final String sql, final String databaseType) {
+        this.sql = sql;
+        this.databaseType = databaseType;
     }
 }

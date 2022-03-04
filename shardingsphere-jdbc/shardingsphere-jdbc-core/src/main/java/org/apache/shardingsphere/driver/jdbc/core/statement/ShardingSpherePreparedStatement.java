@@ -30,6 +30,7 @@ import org.apache.shardingsphere.driver.jdbc.core.resultset.GeneratedKeysResultS
 import org.apache.shardingsphere.driver.jdbc.core.resultset.ShardingSphereResultSet;
 import org.apache.shardingsphere.driver.jdbc.core.statement.metadata.ShardingSphereParameterMetaData;
 import org.apache.shardingsphere.driver.jdbc.exception.SQLExceptionErrorCode;
+import org.apache.shardingsphere.driver.statement.LiaonanzhouSQLStatementBuilder;
 import org.apache.shardingsphere.infra.binder.LogicSQL;
 import org.apache.shardingsphere.infra.binder.SQLStatementContextFactory;
 import org.apache.shardingsphere.infra.binder.segment.insert.keygen.GeneratedKeyContext;
@@ -163,19 +164,7 @@ public final class ShardingSpherePreparedStatement extends AbstractPreparedState
         this.sql = sql;
         statements = new ArrayList<>();
         parameterSets = new ArrayList<>();
-        Optional<SQLParserRule> sqlParserRule = metaDataContexts.getGlobalRuleMetaData().findSingleRule(SQLParserRule.class);
-        ShardingSphereSQLParserEngine sqlParserEngine = new ShardingSphereSQLParserEngine(
-                DatabaseTypeRegistry.getTrunkDatabaseTypeName(metaDataContexts.getMetaData(connection.getSchema()).getResource().getDatabaseType()), sqlParserRule.get());
-        //todo
-        AtomicBoolean sqlShardingCase = new AtomicBoolean(true);
-        connection.getContextManager().getMetaDataContexts().getMetaDataMap().get(connection.getSchema()).getRuleMetaData().getConfigurations().forEach(ruleItem -> {
-            if (sqlShardingCase.get()) {
-                AlgorithmProvidedShardingRuleConfiguration algorithmProvidedShardingRuleConfiguration = (AlgorithmProvidedShardingRuleConfiguration) ruleItem;
-                algorithmProvidedShardingRuleConfiguration.getBindingTableGroups().forEach(table -> sqlShardingCase.set(sql.contains(table)));
-            }
-        });
-        sqlStatement = sqlShardingCase.get() ? sqlParserEngine.parse(this.sql, true) : new CdmsSQLStatement(this.sql);
-
+        sqlStatement = createSQLStatement();
         parameterMetaData = new ShardingSphereParameterMetaData(sqlStatement);
         statementOption = returnGeneratedKeys ? new StatementOption(true) : new StatementOption(resultSetType, resultSetConcurrency, resultSetHoldability);
         executor = new DriverExecutor(connection);
@@ -183,6 +172,27 @@ public final class ShardingSpherePreparedStatement extends AbstractPreparedState
         batchPreparedStatementExecutor = new BatchPreparedStatementExecutor(metaDataContexts, jdbcExecutor, connection.getSchema());
         kernelProcessor = new KernelProcessor();
         statementsCacheable = isStatementsCacheable(metaDataContexts.getMetaData(connection.getSchema()).getRuleMetaData().getConfigurations());
+    }
+
+    /**
+     * 为兼容系统中已存在的业务SQL含义敏感字段，而重构了SQLStatement的实例化过程.
+     *
+     * @return sqlStatement
+     */
+    private SQLStatement createSQLStatement() {
+        Optional<SQLParserRule> sqlParserRule = metaDataContexts.getGlobalRuleMetaData().findSingleRule(SQLParserRule.class);
+        String databaseType = DatabaseTypeRegistry.getTrunkDatabaseTypeName(metaDataContexts.getMetaData(connection.getSchema()).getResource().getDatabaseType());
+        ShardingSphereSQLParserEngine sqlParserEngine = new ShardingSphereSQLParserEngine(databaseType, sqlParserRule.get());
+
+        // determine whether parse this sql
+        AtomicBoolean sqlShardingCase = new AtomicBoolean(true);
+        connection.getContextManager().getMetaDataContexts().getMetaDataMap().get(connection.getSchema()).getRuleMetaData().getConfigurations().forEach(ruleItem -> {
+            if (sqlShardingCase.get()) {
+                AlgorithmProvidedShardingRuleConfiguration algorithmProvidedShardingRuleConfiguration = (AlgorithmProvidedShardingRuleConfiguration) ruleItem;
+                algorithmProvidedShardingRuleConfiguration.getBindingTableGroups().forEach(table -> sqlShardingCase.set(sql.contains(table)));
+            }
+        });
+        return sqlShardingCase.get() ? sqlParserEngine.parse(this.sql, true) : LiaonanzhouSQLStatementBuilder.builder(this.sql, databaseType);
     }
 
     private boolean isStatementsCacheable(final Collection<RuleConfiguration> configurations) {
