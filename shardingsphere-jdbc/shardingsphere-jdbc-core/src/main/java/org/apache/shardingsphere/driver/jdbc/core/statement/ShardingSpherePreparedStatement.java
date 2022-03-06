@@ -17,6 +17,7 @@
 
 package org.apache.shardingsphere.driver.jdbc.core.statement;
 
+import com.alibaba.druid.sql.parser.SQLType;
 import com.google.common.base.Strings;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -30,6 +31,7 @@ import org.apache.shardingsphere.driver.jdbc.core.resultset.GeneratedKeysResultS
 import org.apache.shardingsphere.driver.jdbc.core.resultset.ShardingSphereResultSet;
 import org.apache.shardingsphere.driver.jdbc.core.statement.metadata.ShardingSphereParameterMetaData;
 import org.apache.shardingsphere.driver.jdbc.exception.SQLExceptionErrorCode;
+import org.apache.shardingsphere.driver.statement.LiaonanzhouBaseSQLStatement;
 import org.apache.shardingsphere.driver.statement.LiaonanzhouSQLStatementBuilder;
 import org.apache.shardingsphere.infra.binder.LogicSQL;
 import org.apache.shardingsphere.infra.binder.SQLStatementContextFactory;
@@ -412,10 +414,21 @@ public final class ShardingSpherePreparedStatement extends AbstractPreparedState
         if (executionContext.getRouteContext().isFederated()) {
             return executor.getFederationExecutor().getResultSet();
         }
+        /*
+         * 当执行 select 语句及 dal 语句的时候必须给出 result set !!!
+         */
         if (executionContext.getSqlStatementContext() instanceof SelectStatementContext || executionContext.getSqlStatementContext().getSqlStatement() instanceof DALStatement) {
             List<ResultSet> resultSets = getResultSets();
             MergedResult mergedResult = mergeQuery(getQueryResults(resultSets));
             currentResultSet = new ShardingSphereResultSet(resultSets, mergedResult, this, executionContext);
+        } else if (executionContext.getSqlStatementContext().getSqlStatement() instanceof LiaonanzhouBaseSQLStatement) {
+            // 基于 liaonanzhou statement 进行扩展
+            LiaonanzhouBaseSQLStatement liaonanzhouBaseSQLStatement = (LiaonanzhouBaseSQLStatement) executionContext.getSqlStatementContext().getSqlStatement();
+            if (SQLType.SELECT == liaonanzhouBaseSQLStatement.getSqlType()) {
+                List<ResultSet> resultSets = getResultSets();
+                MergedResult mergedResult = mergeQuery(getQueryResults(resultSets));
+                currentResultSet = new ShardingSphereResultSet(resultSets, mergedResult, this, executionContext);
+            }
         }
         return currentResultSet;
     }

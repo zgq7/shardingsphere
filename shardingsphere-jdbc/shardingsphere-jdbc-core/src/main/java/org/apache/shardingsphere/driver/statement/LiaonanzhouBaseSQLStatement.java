@@ -17,18 +17,31 @@
 
 package org.apache.shardingsphere.driver.statement;
 
+import com.alibaba.druid.DbType;
+import com.alibaba.druid.sql.parser.SQLParserUtils;
+import com.alibaba.druid.sql.parser.SQLType;
 import lombok.Getter;
 import lombok.ToString;
 
 @Getter
 @ToString
-abstract class LiaonanzhouBaseSQLStatement {
+public abstract class LiaonanzhouBaseSQLStatement {
     private final String sql;
 
     private final String databaseType;
 
+    private final SQLType sqlType;
+
     LiaonanzhouBaseSQLStatement(final String sql, final String databaseType) {
         this.sql = sql;
         this.databaseType = databaseType;
+
+        if (databaseType != null && databaseType.toLowerCase().equals("mysql")) {
+            // 方便以后扩展，这里加了if 判断
+            sqlType = SQLParserUtils.getSQLType(sql, DbType.mysql);
+        } else {
+            // default is mysql
+            sqlType = SQLParserUtils.getSQLType(sql, DbType.mysql);
+        }
     }
 }
