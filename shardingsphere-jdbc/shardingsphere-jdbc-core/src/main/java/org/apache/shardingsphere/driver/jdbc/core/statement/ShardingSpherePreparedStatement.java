@@ -19,8 +19,10 @@ package org.apache.shardingsphere.driver.jdbc.core.statement;
 
 import com.alibaba.druid.sql.parser.SQLType;
 import com.google.common.base.Strings;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import lombok.AccessLevel;
 import lombok.Getter;
+import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.apache.shardingsphere.driver.executor.DriverExecutor;
 import org.apache.shardingsphere.driver.executor.batch.BatchExecutionUnit;
 import org.apache.shardingsphere.driver.executor.batch.BatchPreparedStatementExecutor;
@@ -76,6 +78,7 @@ import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
 import org.apache.shardingsphere.parser.rule.SQLParserRule;
 import org.apache.shardingsphere.readwritesplitting.api.ReadwriteSplittingRuleConfiguration;
 import org.apache.shardingsphere.sharding.algorithm.config.AlgorithmProvidedShardingRuleConfiguration;
+import org.apache.shardingsphere.sql.parser.exception.SQLParsingException;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dal.DALStatement;
 import org.apache.shardingsphere.traffic.context.TrafficContext;
@@ -186,15 +189,26 @@ public final class ShardingSpherePreparedStatement extends AbstractPreparedState
         String databaseType = DatabaseTypeRegistry.getTrunkDatabaseTypeName(metaDataContexts.getMetaData(connection.getSchema()).getResource().getDatabaseType());
         ShardingSphereSQLParserEngine sqlParserEngine = new ShardingSphereSQLParserEngine(databaseType, sqlParserRule.get());
 
-        // determine whether parse this sql
-        AtomicBoolean sqlShardingCase = new AtomicBoolean(true);
-        connection.getContextManager().getMetaDataContexts().getMetaDataMap().get(connection.getSchema()).getRuleMetaData().getConfigurations().forEach(ruleItem -> {
-            if (sqlShardingCase.get()) {
-                AlgorithmProvidedShardingRuleConfiguration algorithmProvidedShardingRuleConfiguration = (AlgorithmProvidedShardingRuleConfiguration) ruleItem;
-                algorithmProvidedShardingRuleConfiguration.getBindingTableGroups().forEach(table -> sqlShardingCase.set(sql.contains(table)));
+        SQLStatement sqlStatement;
+        try {
+            sqlStatement = sqlParserEngine.parse(this.sql, true);
+        } catch (SQLParsingException | ParseCancellationException | UncheckedExecutionException originalEx) {
+            // check whether this sql contain binding table
+            AtomicBoolean sqlShardingCase = new AtomicBoolean(true);
+            connection.getContextManager().getMetaDataContexts().getMetaDataMap().get(connection.getSchema()).getRuleMetaData().getConfigurations().forEach(ruleItem -> {
+                if (sqlShardingCase.get()) {
+                    AlgorithmProvidedShardingRuleConfiguration algorithmProvidedShardingRuleConfiguration = (AlgorithmProvidedShardingRuleConfiguration) ruleItem;
+                    algorithmProvidedShardingRuleConfiguration.getBindingTableGroups().forEach(table -> sqlShardingCase.set(sql.contains(table)));
+                }
+            });
+            // when sql not contain binding table , try do this
+            if (!sqlShardingCase.get()) {
+                sqlStatement = LiaonanzhouSQLStatementBuilder.builder(this.sql, databaseType);
+            } else {
+                throw originalEx;
             }
-        });
-        return sqlShardingCase.get() ? sqlParserEngine.parse(this.sql, true) : LiaonanzhouSQLStatementBuilder.builder(this.sql, databaseType);
+        }
+        return sqlStatement;
     }
 
     private boolean isStatementsCacheable(final Collection<RuleConfiguration> configurations) {
