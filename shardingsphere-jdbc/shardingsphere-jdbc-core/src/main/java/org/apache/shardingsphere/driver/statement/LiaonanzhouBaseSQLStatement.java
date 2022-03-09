@@ -18,13 +18,13 @@
 package org.apache.shardingsphere.driver.statement;
 
 import com.alibaba.druid.DbType;
+import com.alibaba.druid.sql.SQLUtils;
+import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.parser.SQLParserUtils;
 import com.alibaba.druid.sql.parser.SQLType;
 import lombok.Getter;
-import lombok.ToString;
 
 @Getter
-@ToString
 public abstract class LiaonanzhouBaseSQLStatement {
     private final String sql;
 
@@ -32,9 +32,12 @@ public abstract class LiaonanzhouBaseSQLStatement {
 
     private final SQLType sqlType;
 
+    private final SQLStatement sqlStatement;
+
     LiaonanzhouBaseSQLStatement(final String sql, final String databaseType) {
         this.sql = sql;
         this.databaseType = databaseType;
+        this.sqlStatement = SQLUtils.parseSingleMysqlStatement(this.sql);
 
         if (databaseType != null && databaseType.toLowerCase().equals("mysql")) {
             // 方便以后扩展，这里加了if 判断
@@ -43,5 +46,10 @@ public abstract class LiaonanzhouBaseSQLStatement {
             // default is mysql
             sqlType = SQLParserUtils.getSQLType(sql, DbType.mysql);
         }
+    }
+
+    @Override
+    public String toString() {
+        return this.getClass().toString();
     }
 }

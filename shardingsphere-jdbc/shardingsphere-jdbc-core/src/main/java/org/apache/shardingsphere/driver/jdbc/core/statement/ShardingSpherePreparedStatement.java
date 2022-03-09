@@ -17,7 +17,8 @@
 
 package org.apache.shardingsphere.driver.jdbc.core.statement;
 
-import com.alibaba.druid.sql.parser.SQLType;
+import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
+import com.alibaba.druid.sql.ast.statement.SQLShowStatement;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import lombok.AccessLevel;
@@ -438,7 +439,7 @@ public final class ShardingSpherePreparedStatement extends AbstractPreparedState
         } else if (executionContext.getSqlStatementContext().getSqlStatement() instanceof LiaonanzhouBaseSQLStatement) {
             // 基于 liaonanzhou statement 进行扩展
             LiaonanzhouBaseSQLStatement liaonanzhouBaseSQLStatement = (LiaonanzhouBaseSQLStatement) executionContext.getSqlStatementContext().getSqlStatement();
-            if (SQLType.SELECT == liaonanzhouBaseSQLStatement.getSqlType()) {
+            if (liaonanzhouBaseSQLStatement.getSqlStatement() instanceof SQLSelectStatement || liaonanzhouBaseSQLStatement.getSqlStatement() instanceof SQLShowStatement) {
                 List<ResultSet> resultSets = getResultSets();
                 MergedResult mergedResult = mergeQuery(getQueryResults(resultSets));
                 currentResultSet = new ShardingSphereResultSet(resultSets, mergedResult, this, executionContext);
